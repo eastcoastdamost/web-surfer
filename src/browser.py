@@ -1,21 +1,43 @@
 """Main browser window: URL bar, back/forward/reload, WebKit view."""
 
+from pathlib import Path
+
 import gi
 
 from . import config
 
 gi.require_version("Gtk", config.GTK_API)
 gi.require_version("WebKit2", config.WEBKIT_API)
-from gi.repository import Gtk, WebKit2
+from gi.repository import GdkPixbuf, Gtk, WebKit2
 
 from .utils import normalize_url
+
+_ASSETS = Path(__file__).resolve().parent.parent / "assets"
+_LOGO = _ASSETS / "logo.jpg"
 
 
 class BrowserWindow(Gtk.Window):
     def __init__(self):
         super().__init__(title=config.APP_NAME)
         self.set_default_size(config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT)
+        self.set_resizable(True)
         self.connect("destroy", Gtk.main_quit)
+        self.connect("window-state-event", self.on_window_state)
+
+        gtk_settings = Gtk.Settings.get_default()
+        if gtk_settings is not None:
+            gtk_settings.set_property(
+                "gtk-decoration-layout", "menu:minimize,maximize,close"
+            )
+
+        header = Gtk.HeaderBar()
+        header.set_show_close_button(True)
+        header.set_decoration_layout("menu:minimize,maximize,close")
+        header.set_title(config.APP_NAME)
+        header.props.has_subtitle = False
+        self._header = header
+        self.set_titlebar(header)
+        self._set_logo(header)
 
         # Shared WebContext so later features (content filters, proxy,
         # cookie policy, Pi-hole-oriented networking) can be attached once.
@@ -120,3 +142,21 @@ class BrowserWindow(Gtk.Window):
     def _update_nav_buttons(self):
         self.back_btn.set_sensitive(self.webview.can_go_back())
         self.forward_btn.set_sensitive(self.webview.can_go_forward())
+
+    def _set_logo(self, header):
+        if not _LOGO.is_file():
+            return
+        try:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                str(_LOGO), 24, 24, True
+            )
+            image = Gtk.Image.new_from_pixbuf(pixbuf)
+            header.pack_start(image)
+            self.set_icon(pixbuf)
+        except Exception:
+            pass
+
+    def on_window_state(self, _window, event):
+        # Keep the header title in sync if the WM reports maximized/fullscreen.
+        return False
+
