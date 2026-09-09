@@ -1,81 +1,218 @@
-# Web Surfer
+Web Surfer
 
-A small desktop browser built with **Python**, **GTK 3**, and **WebKitGTK** (PyGObject). It is not based on Chromium.
+A desktop browser built with Python, GTK 3, and WebKitGTK (PyGObject). It is not based on Chromium.
 
-Version 0.1 is intentionally minimal: a URL/search bar, back, forward, reload, and a WebKit view.
+License: GPL-3.0-or-later. Donations only if you want; the code stays free.
 
-## Requirements
+Requirements
+
+On Fedora (including a Distrobox on Bazzite):
+
+sudo dnf install -y python3 python3-gobject python3-cairo gtk3 webkit2gtk4.1
 
 On Debian/Ubuntu:
 
-```bash
 sudo apt update
 sudo apt install python3 python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-webkit2-4.1
-```
 
-WebKit API `4.1` is requested in `src/config.py`. If your distro only ships `4.0` or `6.0`, change `WEBKIT_API` there.
+WebKit API 4.1 is set in src/config.py. Change WEBKIT_API if your distro ships 4.0 or 6.0.
 
-## Run
+Run
 
-From the repository root:
+From the repository root (inside Distrobox if you use Bazzite):
 
-```bash
 python3 web_surfer.py
 python3 web_surfer.py https://example.com
-```
 
-## What works now
+If WebKit crashes on GPU/EGL inside a container:
 
-- Back / forward / reload
-- Address bar that accepts URLs or search terms
-- Search terms go to DuckDuckGo (`SEARCH_URL` in `src/config.py`)
-- Navigation buttons enable/disable with history
-- A shared `WebKit2.WebContext` and `UserContentManager` ready for filters and scripts
+WEBKIT_DISABLE_COMPOSITING_MODE=1 python3 web_surfer.py
 
-## Planned features
+What works now
 
-1. **In-browser ad blocking (Pi-hole-inspired)**  
-   Load content filters through `WebKit2.UserContentManager` / `UserContentFilterStore`, and optionally talk to a Pi-hole DNS or blocklists.
 
-2. **YouTube playback hooks**  
-   Use `decide-policy` plus `run_javascript()` or injected user scripts, drawing on ideas from SmartTube Beta — not embedding that project’s code.
 
-3. **Built-in search via SearxNG**  
-   SearxNG is a full web app (AGPL), not a library you `import`. The realistic
-   “embedded” path is: Web Surfer starts a local SearxNG process on
-   `127.0.0.1` and uses it as the search backend. See `docs/searxng.md`.
 
-4. **Packaging**  
-   `pyproject.toml` is in place. Flatpak or AppImage can come later.
 
-## Repository layout
+Client-side header: logo, tabs, new-tab, window controls (− □ ×)
 
-```
+
+
+New tab start page: grayscale Web Surfer logo at 30% opacity (websurfer:home)
+
+
+
+Address bar: first click selects all; double-click places the caret
+
+
+
+Typed text that is not a URL goes to DuckDuckGo (SEARCH_URL in src/config.py)
+
+
+
+Back / forward / reload follow the active tab
+
+
+
+Tabs: + or Ctrl+T, × or Ctrl+W, Ctrl+Tab to cycle, middle-click to close
+
+
+
+window.open / target=_blank open a related WebView tab (avoids a WebKit crash)
+
+
+
+Bookmarks stored in ~/.local/share/web-surfer/bookmarks.json
+
+
+
+
+
+Star dialog: name, folder, pin bookmark and/or folder to the bar
+
+
+
+Bookmarks bar (~28px): drag with ghost + drop line, left/right insert
+
+
+
+Bookmarks list (book icon): folders with hover flyouts, drag onto a folder to file
+
+
+
+Favicons cached under ~/.local/share/web-surfer/favicons/
+
+
+
+Shared WebKit2.WebContext and UserContentManager for future filters
+
+Keyboard
+
+
+
+
+
+
+
+Shortcut
+
+
+
+Action
+
+
+
+
+
+Ctrl+T
+
+
+
+New tab
+
+
+
+
+
+Ctrl+W
+
+
+
+Close tab
+
+
+
+
+
+Ctrl+Tab / Ctrl+PageDown
+
+
+
+Next tab
+
+
+
+
+
+Ctrl+Shift+Tab / Ctrl+PageUp
+
+
+
+Previous tab
+
+
+
+
+
+Ctrl+L
+
+
+
+Focus address bar
+
+
+
+
+
+Ctrl+D
+
+
+
+Bookmark / edit bookmark
+
+
+
+
+
+Ctrl+B
+
+
+
+Toggle bookmarks bar
+
+Planned
+
+
+
+
+
+In-browser content filters (Pi-hole-inspired EasyList via UserContentFilterStore)
+
+
+
+YouTube playback hooks (original JS, not vendored SmartTube)
+
+
+
+Bundled local SearxNG process — see docs/searxng.md
+
+
+
+Packaging (Flatpak / AppImage) and a host .desktop icon — see docs/handoff-icons-packaging.md
+
+Layout
+
 web-surfer/
 ├── src/
-│   ├── main.py
-│   ├── browser.py
-│   ├── config.py
-│   └── utils.py
-├── assets/icons/
+│   ├── main.py          # Gtk.main loop
+│   ├── browser.py       # window, tabs, chrome, bookmarks UI
+│   ├── bookmarks.py     # JSON store, folders, bar order
+│   ├── favicons.py      # PNG cache for site icons
+│   ├── config.py        # names, homepage, WebKit version
+│   └── utils.py         # URL vs search
+├── assets/              # logo.png / logo.jpg (header + start page)
 ├── tests/
 ├── docs/
-├── web_surfer.py
+├── web_surfer.py        # run from repo root
 ├── pyproject.toml
-├── requirements.txt
-└── README.md
-```
+└── LICENSE
 
-## Contributing
+Logo files belong in assets/, not assets/icons/.
 
-Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributing
 
-## License
+Issues and pull requests are welcome. See CONTRIBUTING.md.
 
-[GNU General Public License v3.0 or later](LICENSE).
+License
 
-Web Surfer is free software: you can redistribute it and/or modify it under
-the terms of the GNU GPL as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version.
-
-Donations, if any, do not change the license. The program stays free.
+GNU General Public License v3.0 or later.

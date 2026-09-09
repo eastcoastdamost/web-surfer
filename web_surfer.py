@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Convenience launcher so you can run: python3 web_surfer.py [url]"""
+"""Launcher for the repo checkout: python3 web_surfer.py [url]
+
+Puts the project root on sys.path so `src` imports work without install.
+"""
 
 import sys
 from pathlib import Path

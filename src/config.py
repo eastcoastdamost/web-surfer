@@ -1,27 +1,28 @@
-"""Application constants and future-integration settings."""
+"""Application constants and hooks for later features.
+
+Change HOMEPAGE or SEARCH_URL here rather than scattering strings in the UI.
+"""
 
 APP_NAME = "Web Surfer"
+# Reverse-DNS id reserved for a future Gtk.Application / .desktop file.
 APP_ID = "org.websurfer.WebSurfer"
 DEFAULT_WIDTH = 1200
 DEFAULT_HEIGHT = 800
 
-# Homepage used when no URL is passed on the command line.
-# SearxNG users can point this at their instance later.
-HOMEPAGE = "https://duckduckgo.com"
+# New tab and empty address bar. Rendered as local HTML (logo watermark).
+HOMEPAGE = "websurfer:home"
 
-# If a typed query does not look like a URL, treat it as a search.
-# Later: a bundled local SearxNG, e.g.
-#   SEARCH_URL = "http://127.0.0.1:8888/search?q={query}"
+# Non-URL queries are sent here. Later: a bundled SearxNG on 127.0.0.1.
 SEARCH_URL = "https://duckduckgo.com/?q={query}"
 
-# WebKitGTK version to request via gi.require_version
+# Passed to gi.require_version before importing Gtk / WebKit2.
 WEBKIT_API = "4.1"
 GTK_API = "3.0"
 
 # --- Future: Pi-hole / content filtering ---
 # ENABLE_CONTENT_FILTERS = False
-# FILTER_LIST_PATH = None  # path to an EasyList-style filter or JSON rules
-# PIHOLE_DNS = None        # e.g. "192.168.1.2"
+# FILTER_LIST_PATH = None
+# PIHOLE_DNS = None
 
 # --- Future: YouTube playback hooks ---
 # ENABLE_YOUTUBE_HOOKS = False
