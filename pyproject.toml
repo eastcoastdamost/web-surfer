@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "web-surfer"
+version = "0.1.0"
+description = "A simple WebKitGTK browser with planned Pi-hole, YouTube, and SearxNG features."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "HotBod Kebab" }]
+dependencies = ["PyGObject>=3.42"]
+
+[project.scripts]
+web-surfer = "src.main:main"
+
+[tool.setuptools.packages.find]
+include = ["src*"]

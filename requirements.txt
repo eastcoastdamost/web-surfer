@@ -1,0 +1,8 @@
+# Runtime is mostly system packages (GTK + WebKitGTK via GObject Introspection).
+# Install on Debian/Ubuntu:
+#   sudo apt update
+#   sudo apt install python3 python3-gi python3-gi-cairo
+#   sudo apt install gir1.2-gtk-3.0 gir1.2-webkit2-4.1
+#
+# pygobject is typically provided by python3-gi. The pip package is optional.
+PyGObject>=3.42
