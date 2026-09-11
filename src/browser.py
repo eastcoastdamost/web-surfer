@@ -21,9 +21,13 @@ gi.require_version("Gtk", config.GTK_API)
 gi.require_version("WebKit2", config.WEBKIT_API)
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango, WebKit2
 
+import colorsys
+import random
+
 from .bookmarks import OTHER_ID, BookmarkStore
 from . import favicons
 from .utils import normalize_url
+from . import theme as theme_mod
 
 _ROOT = Path(__file__).resolve().parent.parent
 _ASSETS = _ROOT / "assets"
@@ -131,10 +135,19 @@ class BrowserWindow(Gtk.Window):
         self.connect("destroy", Gtk.main_quit)
         self.connect("window-state-event", self.on_window_state)
         self.connect("key-press-event", self.on_key_press)
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.connect("button-press-event", self.on_mouse_nav)
 
         self.bookmarks = BookmarkStore()
         self._tabs = []
         self._active = None
+        self._theme = theme_mod.load_theme()
+        self._theme_provider = Gtk.CssProvider()
+        self._psy_tick = None
+        self._sys_dark = None
+        gtk_probe = Gtk.Settings.get_default()
+        if gtk_probe is not None:
+            self._sys_dark = gtk_probe.get_property("gtk-application-prefer-dark-theme")
 
         gtk_settings = Gtk.Settings.get_default()
         if gtk_settings is not None:
@@ -293,6 +306,7 @@ class BrowserWindow(Gtk.Window):
 
         self._rebuild_bookmarks_menu()
         self._rebuild_bookmarks_bar()
+        self.apply_theme(self._theme, persist=False, reload_home=False)
 
     @property
     def webview(self):
@@ -312,6 +326,7 @@ class BrowserWindow(Gtk.Window):
         webview.connect("notify::favicon", self.on_favicon)
         webview.connect("decide-policy", self.on_decide_policy)
         webview.connect("create", self.on_create_webview)
+        webview.connect("button-press-event", self.on_mouse_nav)
 
         scrolled = Gtk.ScrolledWindow()
         scrolled.add(webview)
@@ -436,7 +451,28 @@ class BrowserWindow(Gtk.Window):
         if logo is not None and logo.is_file():
             mime = "image/png" if logo.suffix.lower() == ".png" else "image/jpeg"
             payload = base64.b64encode(logo.read_bytes()).decode("ascii")
-            img = f'<img src="data:{mime};base64,{payload}" alt="Web Surfer">'
+            img = f'<img class="logo" src="data:{mime};base64,{payload}" alt="Web Surfer">'
+        dark = self._theme_is_dark()
+        bg = "#1c1c1c" if dark else "#f4f4f4"
+        fg = "#e8e8e8" if dark else "#222"
+        muted = "#b0b0b0" if dark else "#555"
+        card = "rgba(255,255,255,0.06)" if dark else "rgba(0,0,0,0.04)"
+        btn = "#2a2a2a" if dark else "#fff"
+        btn_border = "rgba(255,255,255,0.18)" if dark else "rgba(0,0,0,0.16)"
+        active = self._theme
+        modes = (
+            (config.THEME_LIGHT, "Light Mode", self._icon_sun(fg)),
+            (config.THEME_SYSTEM, "Light/Dark Mode based on system", self._icon_sun_moon(fg)),
+            (config.THEME_DARK, "Dark Mode", self._icon_moon(fg)),
+            (config.THEME_PSYCHEDELIC, "Psychedelic Mode", self._icon_mushroom(fg)),
+        )
+        buttons = []
+        for key, label, svg in modes:
+            cls = "mode-btn active" if key == active else "mode-btn"
+            buttons.append(
+                f'<a class="{cls}" href="websurfer:theme/{key}" title="{label}" aria-label="{label}">{svg}</a>'
+            )
+        btn_html = "\n        ".join(buttons)
         return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <title>New Tab</title>
@@ -444,16 +480,53 @@ class BrowserWindow(Gtk.Window):
   html, body {{
     height: 100%;
     margin: 0;
-    background: #f4f4f4;
+    background: {bg};
+    color: {fg};
+    font-family: Cantarell, "Segoe UI", sans-serif;
   }}
-  body {{
-    display: flex;
+  .stage {{
+    min-height: 100%;
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
     align-items: center;
-    justify-content: center;
+    gap: 28px;
+    padding: 32px 40px;
+    box-sizing: border-box;
   }}
-  img {{
-    max-width: min(52vw, 560px);
-    max-height: 52vh;
+  .help {{
+    background: {card};
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: {muted};
+    max-width: 320px;
+    justify-self: end;
+  }}
+  .help h2 {{
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: {fg};
+    font-weight: 600;
+  }}
+  .help kbd {{
+    font-family: inherit;
+    background: {btn};
+    border: 1px solid {btn_border};
+    border-radius: 4px;
+    padding: 0 5px;
+    font-size: 12px;
+    color: {fg};
+  }}
+  .center {{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+  }}
+  img.logo {{
+    max-width: min(42vw, 420px);
+    max-height: 42vh;
     width: auto;
     height: auto;
     filter: grayscale(1);
@@ -461,11 +534,95 @@ class BrowserWindow(Gtk.Window):
     user-select: none;
     pointer-events: none;
   }}
+  .modes {{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }}
+  .mode-btn {{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    text-decoration: none;
+    color: {fg};
+    background: {btn};
+    border: 1px solid {btn_border};
+    border-radius: 50%;
+    padding: 0;
+  }}
+  .mode-btn svg {{
+    width: 22px;
+    height: 22px;
+    display: block;
+  }}
+  .mode-btn.active {{
+    outline: 2px solid #3584e4;
+    outline-offset: 2px;
+  }}
 </style></head>
-<body>{img}</body></html>
+<body>
+  <div class="stage">
+    <aside class="help">
+      <h2>How to surf</h2>
+      <div><kbd>Ctrl</kbd>+<kbd>T</kbd> or the + button — new tab</div>
+      <div><kbd>Ctrl</kbd>+<kbd>W</kbd>, the tab ×, or middle-click a tab — close tab</div>
+      <div><kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd> — cycle tabs</div>
+      <div><kbd>Ctrl</kbd>+<kbd>L</kbd> — focus the address bar</div>
+      <div>Type an address or a search and press Enter</div>
+      <div>Toolbar back / forward, or the mouse back / forward buttons</div>
+      <div><kbd>Ctrl</kbd>+<kbd>D</kbd> or the star — bookmark this page</div>
+      <div><kbd>Ctrl</kbd>+<kbd>B</kbd> — show or hide the bookmarks bar</div>
+    </aside>
+    <div class="center">
+      {img}
+      <div class="modes">
+        {btn_html}
+      </div>
+    </div>
+    <div></div>
+  </div>
+</body></html>
 """
 
+    def _icon_sun(self, color: str) -> str:
+        return f'''<svg viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" fill="{color}" stroke="none"/>
+          <path d="M12 2v2.4M12 19.6V22M4.22 4.22l1.7 1.7M18.08 18.08l1.7 1.7M2 12h2.4M19.6 12H22M4.22 19.78l1.7-1.7M18.08 5.92l1.7-1.7"/>
+        </svg>'''
+
+    def _icon_moon(self, color: str) -> str:
+        return f'''<svg viewBox="0 0 24 24" fill="{color}" stroke="none" aria-hidden="true">
+          <path d="M15.2 3.1a8.8 8.8 0 1 0 5.7 15.4A9 9 0 0 1 15.2 3.1z"/>
+        </svg>'''
+
+    def _icon_sun_moon(self, color: str) -> str:
+        return f'''<svg viewBox="0 0 24 24" aria-hidden="true">
+          <defs>
+            <clipPath id="wsHalf"><rect x="0" y="0" width="12" height="24"/></clipPath>
+          </defs>
+          <g fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" clip-path="url(#wsHalf)">
+            <circle cx="12" cy="12" r="4" fill="{color}" stroke="none"/>
+            <path d="M12 2v2.4M4.22 4.22l1.7 1.7M2 12h2.4M4.22 19.78l1.7-1.7M12 19.6V22"/>
+          </g>
+          <path fill="{color}" d="M15.4 7.1a6.4 6.4 0 0 0 0 9.8 6.6 6.6 0 1 1 0-9.8z"/>
+        </svg>'''
+
+    def _icon_mushroom(self, color: str) -> str:
+        return f'''<svg viewBox="0 0 24 24" fill="{color}" stroke="none" aria-hidden="true">
+          <path d="M4.2 10.2c0-4.4 3.5-8 7.8-8s7.8 3.6 7.8 8H4.2z"/>
+          <path d="M10 11.2h4v7.2c0 1.3-1 2.3-2 2.3s-2-1-2-2.3V11.2z"/>
+          <circle cx="8.2" cy="8.1" r="1.05" fill="{('#1c1c1c' if color.lower() in ('#e8e8e8', '#fff', '#ffffff') else '#f4f4f4')}"/>
+          <circle cx="12.4" cy="6.4" r="0.9" fill="{('#1c1c1c' if color.lower() in ('#e8e8e8', '#fff', '#ffffff') else '#f4f4f4')}"/>
+          <circle cx="15.6" cy="8.6" r="0.8" fill="{('#1c1c1c' if color.lower() in ('#e8e8e8', '#fff', '#ffffff') else '#f4f4f4')}"/>
+        </svg>'''
+
     def _load_in_view(self, webview, url: str):
+        if self._is_theme_uri(url):
+            self.apply_theme(self._theme_from_uri(url))
+            return
         if self._is_home(url):
             webview.load_html(self._home_html(), "about:blank")
             return
@@ -511,15 +668,25 @@ class BrowserWindow(Gtk.Window):
             return True
         return False
 
-    def on_back(self, _button):
+    def on_back(self, _button=None):
         view = self.webview
         if view is not None and view.can_go_back():
             view.go_back()
 
-    def on_forward(self, _button):
+    def on_forward(self, _button=None):
         view = self.webview
         if view is not None and view.can_go_forward():
             view.go_forward()
+
+    def on_mouse_nav(self, _widget, event):
+        button = getattr(event, "button", 0)
+        if button == 8:
+            self.on_back()
+            return True
+        if button == 9:
+            self.on_forward()
+            return True
+        return False
 
     def on_reload(self, _button):
         view = self.webview
@@ -662,6 +829,22 @@ class BrowserWindow(Gtk.Window):
         return self.add_tab(related=webview)
 
     def on_decide_policy(self, _webview, decision, decision_type):
+        try:
+            nav_types = WebKit2.PolicyDecisionType
+            if decision_type not in (
+                nav_types.NAVIGATION_ACTION,
+                nav_types.NEW_WINDOW_ACTION,
+            ):
+                return False
+            action = decision.get_navigation_action()
+            request = action.get_request()
+            uri = request.get_uri() if request is not None else ""
+        except Exception:
+            return False
+        if self._is_theme_uri(uri):
+            self.apply_theme(self._theme_from_uri(uri))
+            decision.ignore()
+            return True
         return False
 
     def on_bookmark_clicked(self, _button):
@@ -1274,3 +1457,112 @@ class BrowserWindow(Gtk.Window):
 
     def on_window_state(self, _window, event):
         return False
+
+    def _is_theme_uri(self, url: str) -> bool:
+        return (url or "").strip().lower().startswith("websurfer:theme/")
+
+    def _theme_from_uri(self, url: str) -> str:
+        raw = (url or "").strip().lower().split("websurfer:theme/", 1)[-1]
+        raw = raw.split("?", 1)[0].strip("/")
+        return raw if raw in config.THEME_MODES else config.DEFAULT_THEME
+
+    def _theme_is_dark(self) -> bool:
+        if self._theme == config.THEME_DARK:
+            return True
+        if self._theme == config.THEME_LIGHT:
+            return False
+        if self._theme == config.THEME_PSYCHEDELIC:
+            return True
+        settings = Gtk.Settings.get_default()
+        if settings is None:
+            return bool(self._sys_dark)
+        return bool(settings.get_property("gtk-application-prefer-dark-theme")) or bool(
+            self._sys_dark
+        )
+
+    def apply_theme(self, mode: str, persist=True, reload_home=True):
+        if mode not in config.THEME_MODES:
+            mode = config.DEFAULT_THEME
+        self._theme = mode
+        if persist:
+            theme_mod.save_theme(mode)
+        settings = Gtk.Settings.get_default()
+        if settings is not None:
+            if mode == config.THEME_LIGHT:
+                settings.set_property("gtk-application-prefer-dark-theme", False)
+            elif mode == config.THEME_DARK:
+                settings.set_property("gtk-application-prefer-dark-theme", True)
+            elif mode == config.THEME_SYSTEM:
+                settings.set_property(
+                    "gtk-application-prefer-dark-theme", bool(self._sys_dark)
+                )
+            else:
+                settings.set_property("gtk-application-prefer-dark-theme", True)
+        self._stop_psychedelic()
+        if mode == config.THEME_PSYCHEDELIC:
+            self._start_psychedelic()
+        else:
+            self._theme_provider.load_from_data(b"")
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(),
+            self._theme_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_USER,
+        )
+        if reload_home:
+            self._reload_home_tabs()
+
+    def _reload_home_tabs(self):
+        for tab in self._tabs:
+            view = tab["webview"]
+            if self._is_home(view.get_uri() or ""):
+                view.load_html(self._home_html(), "about:blank")
+
+    def _stop_psychedelic(self):
+        if self._psy_tick is not None:
+            try:
+                GLib.source_remove(self._psy_tick)
+            except Exception:
+                pass
+            self._psy_tick = None
+
+    def _start_psychedelic(self):
+        self._paint_psychedelic()
+        self._psy_tick = GLib.timeout_add(2800, self._psychedelic_tick)
+
+    def _psychedelic_tick(self):
+        if self._theme != config.THEME_PSYCHEDELIC:
+            return False
+        self._paint_psychedelic()
+        return True
+
+    def _paint_psychedelic(self):
+        def hue(h, s=0.72, l=0.42):
+            r, g, b = colorsys.hls_to_rgb(h % 1.0, l, s)
+            return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+
+        seed = random.random()
+        c1 = hue(seed)
+        c2 = hue(seed + 0.18)
+        c3 = hue(seed + 0.41)
+        c4 = hue(seed + 0.63)
+        css = f"""
+            headerbar, headerbar.default-decoration {{
+                background-image: linear-gradient(115deg, {c1}, {c2} 55%, {c3});
+                background-color: {c1};
+                color: #fff;
+            }}
+            headerbar button, headerbar entry {{
+                background-color: alpha(#000, 0.22);
+            }}
+            .ws-tab-active {{
+                background-color: alpha(#fff, 0.28);
+            }}
+            .ws-hover {{
+                background-color: alpha(#fff, 0.18);
+            }}
+            .ws-drop-line {{
+                background-color: {c4};
+            }}
+        """.encode("utf-8")
+        self._theme_provider.load_from_data(css)
+

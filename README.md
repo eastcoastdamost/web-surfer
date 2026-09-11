@@ -39,7 +39,9 @@ WEBKIT_DISABLE_COMPOSITING_MODE=1 python3 web_surfer.py
 ## What works now
 
 - Client-side header: logo, tabs, new-tab, window controls (− □ ×)
-- New tab start page: grayscale Web Surfer logo at 30% opacity (`websurfer:home`)
+- New tab start page (`websurfer:home`): grayscale logo, usage notes on the left, theme buttons under the logo
+- Chrome themes: Light, system Light/Dark, Dark, and Psychedelic (new palette each time; chrome only, not page content)
+- Mouse back / forward buttons (buttons 8 and 9) match the toolbar back / forward controls
 - Address bar: first click selects all; double-click places the caret
 - Typed text that is not a URL goes to DuckDuckGo (`SEARCH_URL` in `src/config.py`)
 - Back / forward / reload follow the active tab

@@ -19,6 +19,14 @@ SEARCH_URL = "https://duckduckgo.com/?q={query}"
 WEBKIT_API = "4.1"
 GTK_API = "3.0"
 
+# Appearance. "system" follows the desktop GTK preference.
+THEME_LIGHT = "light"
+THEME_SYSTEM = "system"
+THEME_DARK = "dark"
+THEME_PSYCHEDELIC = "psychedelic"
+THEME_MODES = (THEME_LIGHT, THEME_SYSTEM, THEME_DARK, THEME_PSYCHEDELIC)
+DEFAULT_THEME = THEME_SYSTEM
+
 # --- Future: Pi-hole / content filtering ---
 # ENABLE_CONTENT_FILTERS = False
 # FILTER_LIST_PATH = None
